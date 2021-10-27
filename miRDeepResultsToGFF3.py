@@ -174,9 +174,9 @@ if __name__ == '__main__':
 
         elif arg == '--help' or arg == '-h':
             print(f'Manual:\n'
-                  f' -i <path1,path2...> : mirdeep prediction output, like result_08_10_2021_t_09_57_05\n'
+                  f' -i <path> : miRDeep2 prediction output path, like result_08_10_2021_t_09_57_05\n'
                   f' -o <path> : output path.\n'
-                  f' --csv-save : will save the inner tables of mirdeep results as csv.\n')
+                  f' --csv-save : will save the inner tables of miRDeep2 output results as csv.\n')
             sys.exit()
         i += 2
 
