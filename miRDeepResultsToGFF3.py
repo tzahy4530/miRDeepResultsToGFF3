@@ -97,8 +97,8 @@ def run(inputs, output):
                 name = name.replace('-3p', '')
                 name = name.replace('-5p', '')
 
-            seqId5p = name + '-5p'  # *
-            seqId3p = name + '-3p'  # *
+            seqId5p = seqId + '-5p'  # *
+            seqId3p = seqId + '-3p'  # *
 
             start = int(positions.split('..')[0])+1  # *
             end = int(positions.split('..')[1])  # *
