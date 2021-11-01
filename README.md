@@ -12,6 +12,8 @@ this scripts using the prediction output of miRDeep2 (result_08_10_2021_t_09_57_
   
   `-o <path> : GFF3 output path.`
   
+  `-t <float> : threshold for the true positive estimate, any value between 0 - 100, default: None.`
+  
   `--csv-save : will save the inner tables of miRDeep2 output results as csv.`
 
 * Example Run:
