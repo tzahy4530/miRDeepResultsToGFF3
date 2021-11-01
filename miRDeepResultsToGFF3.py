@@ -56,9 +56,10 @@ def readMirbaseResults(input_path):
     return inputs
 
 
-def run(inputs, output):
+def run(inputs, output, threshold):
     """
     This function create gff3 file from the inputs.
+    :param threshold: Float - threshold for the true positive estimate.
     :param inputs: Array - with DataFrames of miRDeep results.csv predict tables.
     :param output: String - output path of the GFF formatted file.
     :return: None, at the end of the function gff3 file will created.
@@ -68,6 +69,15 @@ def run(inputs, output):
     gff3 = pd.DataFrame(columns=gff3_columns)
     for input in inputs:
         for index, row in input.iterrows():
+            if threshold is not None:
+                try:
+                    true_positive_est = row['estimated probability that the miRNA candidate is a true positive']
+                except:
+                    true_positive_est = row['estimated probability that the miRNA is a true positive']
+
+                true_positive_est = float(true_positive_est.split(' ')[0])
+                if threshold > true_positive_est:
+                    continue
             details = row['precursor coordinate']
             name = details.split(':')[0]  # *
             positions = details.split(':')[1]
@@ -92,10 +102,10 @@ def run(inputs, output):
                 seqId = row['provisional id']  # *
 
             except:
-                seqId = row['tag id']
-                name = row["mature miRBase miRNA"]
-                name = name.replace('-3p', '')
-                name = name.replace('-5p', '')
+                # That's mean that belong to known microRNA
+                seqId = row["mature miRBase miRNA"]
+                seqId = seqId.replace('-3p', '')
+                seqId = seqId.replace('-5p', '')
 
             seqId5p = seqId + '-5p'  # *
             seqId3p = seqId + '-3p'  # *
@@ -158,6 +168,7 @@ if __name__ == '__main__':
     input = None
     output = None
     csv_save = False
+    threshold = None
     args = []
 
     i = 1
@@ -167,6 +178,8 @@ if __name__ == '__main__':
             input = sys.argv[i + 1]
         elif arg == '-o':
             output = sys.argv[i + 1]
+        elif arg == '-t':
+            threshold = sys.argv[i + 1]
         elif arg == '--csv-save':
             csv_save = True
             i += 1
@@ -176,6 +189,7 @@ if __name__ == '__main__':
             print(f'Manual:\n'
                   f' -i <path> : miRDeep2 prediction output path, like result_08_10_2021_t_09_57_05\n'
                   f' -o <path> : output path.\n'
+                  f' -t <float> : threshold for the true positive estimate, any value between 0 - 100, default: None.\n'
                   f' --csv-save : will save the inner tables of miRDeep2 output results as csv.\n')
             sys.exit()
         i += 2
@@ -187,11 +201,14 @@ if __name__ == '__main__':
         raise ('Output path is required (-o <path>)')
 
     inputs = readMirbaseResults(input)
-    if csv_save:
+    if csv_save is not None:
         count = 1
         for input in inputs:
             input.to_csv(f'table{count}.csv',sep='\t')
             count += 1
 
-    run(inputs, output)
+    if threshold is not None:
+        threshold = float(threshold)
+
+    run(inputs, output, threshold)
 
