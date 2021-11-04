@@ -12,7 +12,13 @@ this scripts using the prediction output of miRDeep2 (result_08_10_2021_t_09_57_
   
   `-o <path> : GFF3 output path.`
   
-  `-t <float> : threshold for the true positive estimate, any value between 0 - 100, default: None.`
+  `--create-fasta <path>: create fasta file from the gff3 table. default: None`
+  
+  `--filter-tp <float> : threshold for the true positive estimate, any value between 0 - 100, default: None.`
+  
+  `--filter-s <float> : threshold for score, default: None.`
+  
+  `--exclude-c <int> : term to ignore the score filter threshold if total counts are higher, default: None.`
   
   `--csv-save : will save the inner tables of miRDeep2 output results as csv.`
 
