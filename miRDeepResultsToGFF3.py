@@ -179,8 +179,8 @@ def run(inputs, output, threshold_tp, threshold_s, exclude_c, fasta_path):
                 seq3p = row['consensus mature sequence']  # *
                 seq5p_freq = len(input[input['consensus star sequence'] == seq5p])
                 seq3p_freq = len(input[input['consensus mature sequence'] == seq3p])
-                seq5p_id += f'-m-{seq5p_freq}'
-                seq3p_id += f'-s-{seq3p_freq}'
+                seq5p_id += f'-s-{seq5p_freq}'
+                seq3p_id += f'-m-{seq3p_freq}'
 
 
             if fasta_path is not None:
