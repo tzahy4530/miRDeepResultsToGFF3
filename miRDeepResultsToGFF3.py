@@ -5,6 +5,64 @@ import pandas as pd
 import io
 pd.options.mode.chained_assignment = None
 
+
+def writeRemovedFasta(removed_input, seed_path, seed_file, fasta_path):
+    open(fasta_path, 'w').close()
+    removed_fasta_file = ''
+
+    for input in removed_input:
+        for index, row in input.iterrows():
+            seq_id = getSeqId(row)
+            star_seq = row['consensus star sequence']
+            mature_seq = row['consensus mature sequence']
+            hairpin = row['consensus precursor sequence']
+
+            star_position = hairpin.index(star_seq)
+            mature_position = hairpin.index(mature_seq)
+
+            seq5p_id = seq_id + '|5p'
+            seq3p_id = seq_id + '|3p'
+
+            if star_position > mature_position:
+                seq5p = row['consensus mature sequence']  # *
+                seq3p = row['consensus star sequence']  # *
+                seq5p_id += '|m'
+                seq3p_id += '|s'
+
+            else:
+                seq5p = row['consensus star sequence']  # *
+                seq3p = row['consensus mature sequence']  # *
+                seq5p_id += '|s'
+                seq3p_id += '|m'
+
+            if seed_path:
+                seq5p_seed = seq5p[1:8].upper()
+                seq3p_seed = seq3p[1:8].upper()
+                try:
+                    seq5p_id += '|' + seed_file[seed_file['seed'] == seq5p_seed]["miRBase_name"].iloc[0]
+                except:
+                    seq5p_id += '|' + seq5p_seed
+
+                try:
+                    seq3p_id += '|' + seed_file[seed_file['seed'] == seq3p_seed]["miRBase_name"].iloc[0]
+                except:
+                    seq3p_id += '|' + seq3p_seed
+
+            if seq5p != '-':
+                removed_fasta_file += f'>{seq5p_id}\n{seq5p}\n'
+
+            if seq3p != '-':
+                removed_fasta_file += f'>{seq3p_id}\n{seq3p}\n'
+
+            if len(removed_fasta_file) > 100000:
+                with open(fasta_path, 'a+') as f:
+                    f.write(removed_fasta_file)
+                removed_fasta_file = ''
+
+    with open(fasta_path, 'a+') as f:
+        f.write(removed_fasta_file)
+
+
 def filterInputs(inputs_arr, score_threshold, true_positive_threshold, exclude_counts):
     """
     This Function filtering the inputs Dataframe by threshold
@@ -19,6 +77,7 @@ def filterInputs(inputs_arr, score_threshold, true_positive_threshold, exclude_c
         return inputs_arr
 
     filtered_inputs_arr = []
+    removed_from_inputs_arr = []
 
     file_count = 1
     for input in inputs_arr:
@@ -29,6 +88,7 @@ def filterInputs(inputs_arr, score_threshold, true_positive_threshold, exclude_c
         if score_threshold is not None:
             input['total read count'] = pd.to_numeric(input['total read count'])
             input['miRDeep2 score'] = pd.to_numeric(input['miRDeep2 score'])
+            deleted_input = input[(input['total read count'] < exclude_counts) & (input['miRDeep2 score'] < score_threshold)]
             input = input[(input['total read count'] >= exclude_counts) | (input['miRDeep2 score'] >= score_threshold)]
             total_reads_left = len(input.index)
             filtered_percent = "%.2f" % (((total_reads-total_reads_left)/total_reads)*100)
@@ -46,6 +106,10 @@ def filterInputs(inputs_arr, score_threshold, true_positive_threshold, exclude_c
                     lambda row: row['estimated probability that the miRNA is a true positive'].split(' ')[0],
                   axis=1))
 
+            if deleted_input is not None:
+                deleted_input = deleted_input.append(input[(input['true positive probability'] < true_positive_threshold)])
+            else:
+                deleted_input = input[~(input['true positive probability'] >= true_positive_threshold)]
             input = input[input['true positive probability'] >= true_positive_threshold]
             total_reads_left_after_true_positive_filtering = len(input.index)
 
@@ -61,8 +125,9 @@ def filterInputs(inputs_arr, score_threshold, true_positive_threshold, exclude_c
         sys.stdout.write(f'\tTotal Reads Left After Filtering: {total_reads_left} ({filtered_percent}%)\n')
         file_count += 1
         filtered_inputs_arr.append(input)
-
-    return filtered_inputs_arr
+        if deleted_input is not None:
+            removed_from_inputs_arr.append(deleted_input)
+    return filtered_inputs_arr, removed_from_inputs_arr
 
 
 def readMirbaseResults(input_path):
@@ -127,10 +192,11 @@ def getSeqId(row):
 
     return seq_id
 
-def run(inputs, output, threshold_tp, threshold_s, exclude_c, fasta_path):
+def run(inputs, output, threshold_tp, threshold_s, exclude_c, fasta_path, seed_path):
     f"""
     This function create gff3 file from the inputs, This function will add to the miRNA ID -m / -s if its mature/star,
     -number which the number its the frequency of this seq among its type (mature/star)
+    :param seed_path: String - seed file path.
     :param fasta_path: String - fasta file will created in this path.
     :param exclude_c: Int - exclude rows from the filtering when total counts higher than exclude_c.
     :param threshold_s: Float - threshold for score.
@@ -139,11 +205,16 @@ def run(inputs, output, threshold_tp, threshold_s, exclude_c, fasta_path):
     :param output: String - output path of the GFF formatted file.
     :return: None, at the end of the function gff3 file will created.
     """
+    seed_file = None
     version = "##gff-version 3\n"
     gff3_columns = ['seqid', 'source', 'type', 'start', 'end', 'score', 'strand', 'phase', 'attributes']
     gff3 = pd.DataFrame(columns=gff3_columns)
 
-    filtered_input = filterInputs(inputs, threshold_s, threshold_tp, exclude_c)
+    filtered_input, removed_input = filterInputs(inputs, threshold_s, threshold_tp, exclude_c)
+
+
+    if seed_path is not None:
+        seed_file = pd.read_csv(seed_path, sep="\t")
 
     if fasta_path is not None:
         fasta_file = ''
@@ -163,25 +234,37 @@ def run(inputs, output, threshold_tp, threshold_s, exclude_c, fasta_path):
             star_position = hairpin.index(star_seq)
             mature_position = hairpin.index(mature_seq)
 
-            seq5p_id = seq_id + '-5p'
-            seq3p_id = seq_id + '-3p'
+            seq5p_id = seq_id + '|5p'
+            seq3p_id = seq_id + '|3p'
 
             if star_position > mature_position:
                 seq5p = row['consensus mature sequence']  # *
                 seq3p = row['consensus star sequence']  # *
                 seq5p_freq = len(input[input['consensus mature sequence'] == seq5p])
                 seq3p_freq = len(input[input['consensus star sequence'] == seq3p])
-                seq5p_id += f'-m-{seq5p_freq}'
-                seq3p_id += f'-s-{seq3p_freq}'
+                seq5p_id += f'|m|{seq5p_freq}'
+                seq3p_id += f'|s|{seq3p_freq}'
 
             else:
                 seq5p = row['consensus star sequence']  # *
                 seq3p = row['consensus mature sequence']  # *
                 seq5p_freq = len(input[input['consensus star sequence'] == seq5p])
                 seq3p_freq = len(input[input['consensus mature sequence'] == seq3p])
-                seq5p_id += f'-s-{seq5p_freq}'
-                seq3p_id += f'-m-{seq3p_freq}'
+                seq5p_id += f'|s|{seq5p_freq}'
+                seq3p_id += f'|m|{seq3p_freq}'
 
+            if seed_path:
+                seq5p_seed = seq5p[1:8].upper()
+                seq3p_seed = seq3p[1:8].upper()
+                try:
+                    seq5p_id += '|' + seed_file[seed_file['seed'] == seq5p_seed]["miRBase_name"].iloc[0]
+                except:
+                    seq5p_id += '|' + seq5p_seed
+
+                try:
+                    seq3p_id += '|' + seed_file[seed_file['seed'] == seq3p_seed]["miRBase_name"].iloc[0]
+                except:
+                    seq3p_id += '|' + seq3p_seed
 
             if fasta_path is not None:
                 if seq5p != '-':
@@ -237,6 +320,10 @@ def run(inputs, output, threshold_tp, threshold_s, exclude_c, fasta_path):
         with open(fasta_path, 'a+') as f:
             f.write(fasta_file)
 
+        writeRemovedFasta(removed_input, seed_path, seed_file, 'removed_by_filter_' + fasta_path)
+
+
+
     gff3.to_csv(output, index=False, header=False, mode="a", sep='\t')
 
 
@@ -249,6 +336,7 @@ if __name__ == '__main__':
     threshold_s = None
     fasta_path = None
     exclude_c = None
+    seed_path = None
     args = []
 
     i = 1
@@ -258,6 +346,8 @@ if __name__ == '__main__':
             input = sys.argv[i + 1]
         elif arg == '-o':
             output = sys.argv[i + 1]
+        elif arg == '-seed':
+            seed_path = sys.argv[i + 1]
         elif arg == '--filter-tp':
             threshold_tp = sys.argv[i + 1]
         elif arg == '--filter-s':
@@ -275,6 +365,8 @@ if __name__ == '__main__':
             print(f'Manual:\n'
                   f' -i <path> : miRDeep2 prediction output path, like result_08_10_2021_t_09_57_05\n'
                   f' -o <path> : output path.\n'
+                  f' -seed <path> : classify the reads by seed file, should be separated by tab with columns'
+                  f' [miRBase_name, seed], default: None.\n'
                   f' --filter-tp <float> : threshold for the true positive estimate, any value between 0 - 100, '
                   f'default: None.\n '
                   f' --filter-s <float> : threshold for score, default: None.\n'
@@ -306,4 +398,4 @@ if __name__ == '__main__':
     if exclude_c is not None:
         exclude_c = int(exclude_c)
 
-    run(inputs, output, threshold_tp, threshold_s, exclude_c, fasta_path)
+    run(inputs, output, threshold_tp, threshold_s, exclude_c, fasta_path, seed_path)
