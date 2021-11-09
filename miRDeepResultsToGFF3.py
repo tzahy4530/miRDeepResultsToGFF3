@@ -254,17 +254,19 @@ def run(inputs, output, threshold_tp, threshold_s, exclude_c, fasta_path, seed_p
                 seq3p_id += f'|m|{seq3p_freq}'
 
             if seed_path:
-                seq5p_seed = seq5p[1:8].upper()
-                seq3p_seed = seq3p[1:8].upper()
-                try:
-                    seq5p_id += '|' + seed_file[seed_file['seed'] == seq5p_seed]["miRBase_name"].iloc[0]
-                except:
-                    seq5p_id += '|' + seq5p_seed
+                if seq5p != '-':
+                    seq5p_seed = seq5p[1:8].upper()
+                    try:
+                        seq5p_id += '|' + seed_file[seed_file['seed'] == seq5p_seed]["miRBase_name"].iloc[0]
+                    except:
+                        seq5p_id += '|' + seq5p_seed
 
-                try:
-                    seq3p_id += '|' + seed_file[seed_file['seed'] == seq3p_seed]["miRBase_name"].iloc[0]
-                except:
-                    seq3p_id += '|' + seq3p_seed
+                if seq3p != '-':
+                    seq3p_seed = seq3p[1:8].upper()
+                    try:
+                        seq3p_id += '|' + seed_file[seed_file['seed'] == seq3p_seed]["miRBase_name"].iloc[0]
+                    except:
+                        seq3p_id += '|' + seq3p_seed
 
             if fasta_path is not None:
                 if seq5p != '-':
