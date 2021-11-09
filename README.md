@@ -12,7 +12,7 @@ this scripts using the prediction output of miRDeep2 (result_08_10_2021_t_09_57_
   
   `-o <path> : GFF3 output path.`
   
-  '-seed <path> : classify the reads by seed file, should be separated by tab with columns [miRBase_name, seed], default: None.'
+  `-seed <path> : classify the reads by seed file, should be separated by tab with columns [miRBase_name, seed], default: None.`
   
   `--create-fasta <path>: create fasta file from the gff3 table. default: None`
   
